@@ -1,0 +1,31 @@
+:poodledo: 
+    a python module that talks to the Toodledo API 
+:author:
+    Felix Riedel
+
+Basic Usage
+------------
+
+TODO
+
+
+About the name
+--------------
+
+* a module named `toodledo` might conflict with other's implementations
+* python + toodledo = poodledo
+* the source code of poodledo looks like poodle doo :-)
+
+Contact the author
+------------------
+
+You can email me at felix.riedel+poodledo at gmail dot com.
+
+To report bugs or request features, please use the *issues*
+tab at the Google code site: http://code.google.com/p/poodledo/issues/list.
+
+
+License and copyright
+---------------------
+
+poodledo is released under a *BSD License*. See LICENSE file for details.
