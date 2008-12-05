@@ -6,14 +6,15 @@ import urllib
 import urllib2
 
 import pickle
-import datetime
-import logging
+import time
+from datetime import datetime, timedelta
 import elementtree.ElementTree as ET
 from md5 import md5
 
-logging.basicConfig()
-LOG = logging.getLogger(__name__)
-LOG.setLevel(logging.DEBUG)
+# import logging
+# logging.basicConfig()
+# LOG = logging.getLogger(__name__)
+# LOG.setLevel(logging.DEBUG)
 
 class ToodledoError(Exception):
 
@@ -60,14 +61,71 @@ class TokenCache(object):
             self.userids[token.email] = token.userid
             self.saveCache()
 
-class ToodledoData(object):
 
-    def __init__(self,node=None,**kwargs):
-        if node is None:
-            self.__dict__.update(kwargs)
-        else:
-            d = dict( (e.tag, e.text) for e in node.getchildren())
-            self.__dict__.update(d)
+def local_date(string):
+    dt = datetime.strptime(string[0:25], '%a, %d %b %Y %H:%M:%S')
+    return dt + timedelta(hours=6) + timedelta(seconds=local_time_offset())
+
+def local_time_offset():
+    """Return offset of local zone from GMT"""
+    if time.localtime().tm_isdst and time.daylight:
+        return -time.altzone
+    else:
+        return -time.timezone
+
+
+def boolstr(string):
+    return bool(int(string))
+
+class ToodledoData(object):
+    _typemap = {
+            'server': {
+                'unixtime': int,
+                'date': local_date,
+                'tokenexpires': float
+                },
+            'folder': {
+                'id': int,
+                'archived': boolstr,
+                'private': boolstr,
+                'order': int
+                },
+            'context': {
+                'id': int,
+                'default': boolstr,
+                },
+            'goal': {
+                'id': int,
+                'level': int,
+                'contributes': int,
+                'archived': boolstr
+                },
+            'account': {
+                'userid': str,
+                'alias': str,
+                'pro': boolstr,
+                'dateformat': int,
+                'timezone': int,
+                'hidemonths': int,
+                'hotlistpriority': int,
+                'hotlistduedate': int,
+                'lastaddedit': str,
+                'lastdelete': str,
+                'lastfolderedit': str,
+                'lastcontextedit': str,
+                'lastgoaledit': str,
+                'lastnotebookedit': str,
+                },
+            }
+
+    def __init__(self,node=None):
+        typemap = ToodledoData._typemap[node.tag]
+        for elem in node.getchildren():
+             self.__dict__[elem.tag] = typemap[elem.tag](elem.text)
+        for a in node.attrib:
+             self.__dict__[a] = typemap[a](node.attrib[a])
+        if not node.text.isspace() :
+            self.title = node.text
 
     def __repr__(self):
         return str(self.__dict__)
@@ -167,8 +225,33 @@ class ApiClient(object):
 
         folders = []
         for elem in root_node.getchildren():
-            attribs = {'name': elem.text}
-            attribs.update( elem.attrib )
-            folders.append( ToodledoData(**attribs))
+            folders.append( ToodledoData(elem))
         return folders
+
+    def getContexts(self,key=None):
+        if key is None:
+            key = self.key
+        stream = self._call(method='getContexts', key=key)
+        xmltree = ET.parse(stream)
+        root_node = xmltree.getroot()
+
+        if root_node.tag == 'error':
+            raise ToodledoError(root_node.text)
+
+        contexts = []
+        for elem in root_node.getchildren():
+            contexts.append( ToodledoData(elem))
+        return contexts
+
+    def getAccountInfo(self,key=None):
+        if key is None:
+            key = self.key
+        stream = self._call(method='getAccountInfo', key=key)
+        xmltree = ET.parse(stream)
+        root_node = xmltree.getroot()
+
+        if root_node.tag == 'error':
+            raise ToodledoError(root_node.text)
+
+        return ToodledoData(root_node)
 
