@@ -12,6 +12,23 @@ from md5 import md5
 
 __all__ = ['ApiClient']
 
+def _local_date(string):
+    dt = datetime.strptime(string[0:25], '%a, %d %b %Y %H:%M:%S')
+    return dt + timedelta(hours=6) + timedelta(seconds=_local_time_offset())
+
+def _local_time_offset():
+    """Return offset of local zone from GMT"""
+    if time.localtime().tm_isdst and time.daylight:
+        return -time.altzone
+    else:
+        return -time.timezone
+
+def _date(string):
+    return datetime.st
+
+def _boolstr(string):
+    return bool(int(string))
+
 class ToodledoError(Exception):
     ''' Error return from Toodledo API server'''
 
@@ -20,7 +37,6 @@ class ToodledoError(Exception):
 
     def __str__(self):
         return "Toodledo server returned error: %s" % self.msg
-
 
 class ToodledoData(object):
     _typemap = {
@@ -61,6 +77,30 @@ class ToodledoData(object):
                 'lastgoaledit': str,
                 'lastnotebookedit': str,
                 },
+            'task': {
+                'id': int,
+                'parent': int,
+                'children': int,
+                'title': unicode,
+                'tag': str,
+                'folder': int,
+                'context':  str,
+                'goal': str,
+                'added': str,
+                'modified': str,
+                'startdate': str,
+                'duedate': str,
+                'duetime': str,
+                'completed': str,
+                'repeat': int,
+                'rep_advanced': str,
+                'status': int,
+                'star': _boolstr,
+                'priority': int,
+                'length': int,
+                'timer': int,
+                'note': unicode 
+                }
             }
 
     def __init__(self,node=None):
@@ -75,6 +115,41 @@ class ToodledoData(object):
     def __repr__(self):
         return str(self.__dict__)
 
+
+class PoodledoError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __repr__(self):
+        return 'PoodledoError("%s")' % self.msg
+
+    def __str__(self):
+        return self.msg
+
+def check_api_key(f):
+    ''' A decorator that makes the decorated function check for a API key'''
+    def fn(self, **kwargs):
+        # check if key is set to a value
+        if 'key' in kwargs and kwargs['key'] is not None:
+            return f(self, **kwargs)
+        else:
+            # try to get the key from the ApiClient
+            if self.key is not None:
+                kwargs['key'] = self.key
+                return f(self, **kwargs)
+            else:
+                raise PoodledoError('need API key to call function %s' % f.__name__)
+    return fn
+
+def returns_list(f):
+    def fn(self, **kwargs):
+        return [ ToodledoData(elem) for elem in f(self, **kwargs) ]
+    return fn
+
+def returns_item(f):
+    def fn(self, **kwargs):
+        return ToodledoData(f(self, **kwargs))
+    return fn
 
 class ApiClient(object):
     ''' Toodledo API client'''
@@ -97,33 +172,21 @@ class ApiClient(object):
         url = ApiClient._SERVICE_URL
         # add args to url (key1=value1;key2=value2)
         # trailing underscores are stripped from keys to allow keys like pass_
-        url += ';'.join(key.rstrip('_') + '=' + kwargs[key] for key in sorted(kwargs))
+        url += ';'.join(key.rstrip('_') + '=' + str(kwargs[key]) for key in sorted(kwargs))
         return url
-
-    def _call(self, **kwargs):
-        assert('method' in kwargs)
-        url = self._create_url(**kwargs)
-        return self._urlopener.open(url)
 
     def _check_for_error(self, node):
         if node.tag == 'error':
             raise ToodledoError(node.text)
 
-    def _get_call(self,method,key=None, **kwargs):
-        if key is None:
-            key = self.key
-        stream = self._call(method=method, key=key, **kwargs)
-        root_node = ET.parse(stream).getroot()
-        self._check_for_error(root_node)
-        return ToodledoData(root_node)
 
-    def _get_list_call(self,method,key=None,**kwargs):
-        if key is None:
-            key = self.key
-        stream = self._call(method=method, key=key, **kwargs)
+    def _call(self, **kwargs):
+        url = self._create_url(**kwargs)
+        stream = self._urlopener.open(url)
         root_node = ET.parse(stream).getroot()
         self._check_for_error(root_node)
-        return [ ToodledoData(elem) for elem in root_node.getchildren() ]
+        return root_node
+
 
     def authenticate(self, email, passwd):
         ''' Uses credentials to get userid, token and auth key'''
@@ -140,48 +203,98 @@ class ApiClient(object):
         return md5(md5(passwd).hexdigest() + token + userid).hexdigest()
 
     def getUserid(self, email, passwd):
-        stream = self._call(method='getUserid', email=email, pass_=passwd)
-        root_node = ET.parse(stream).getroot()
-        self._check_for_error(root_node)
-        return root_node.text
+        userid = self._call(method='getUserid', email=email, pass_=passwd).text
+        if userid == '1':
+            raise ToodledoError('invalid username/password')
+        return userid 
 
-    def getToken(self,userid=None):
+    def getToken(self, userid=None):
         if userid is None:
             if self.userid is not None:
                 userid = self.userid
             else:
                 raise Exception() # TODO: 
-        root_node = ET.parse(self._call(method='getToken', userid=userid)).getroot()
-        self._check_for_error(root_node)
-        return root_node.text
+        return self._call(method='getToken', userid=userid).text
 
-    def getServerInfo(self,key=None):
-        return self._get_call(method='getServerInfo', key=key)
+    @check_api_key
+    @returns_item
+    def getServerInfo(self, key=None):
+        return self._call(method='getServerInfo', key=key)
 
-    def getAccountInfo(self,key=None):
-        return self._get_call(method='getAccountInfo', key=key)
+    @check_api_key
+    @returns_item
+    def getAccountInfo(self, key=None):
+        return self._call(method='getAccountInfo', key=key)
 
+    @check_api_key
+    @returns_list
+    def getFolders(self, key=None):
+        return self._call(method='getFolders', key=key)
 
-    def getFolders(self,key=None):
-        return self._get_list_call('getFolders',key=key)
+    @check_api_key
+    @returns_list
+    def getContexts(self, key=None):
+        return self._call(method='getContexts', key=key)
 
-    def getContexts(self,key=None):
-        return self._get_list_call('getContexts',key=key)
+    @check_api_key
+    @returns_list
+    def getGoals(self, key=None):
+        return self._call(method='getGoals', key=key)
 
-    def getGoals(self,key=None):
-        return self._get_list_call('getGoals',key=key)
+    @check_api_key
+    @returns_list
+    def getTasks(self, key=None, **kwargs):
+        return self._call(method='getTasks', key=key, **kwargs)
 
+    @check_api_key
+    @returns_list
+    def getDeleted(self, key=None, **kwargs):
+        return self._call(method='getDeleted', key=key, **kwargs)
 
-def _local_date(string):
-    dt = datetime.strptime(string[0:25], '%a, %d %b %Y %H:%M:%S')
-    return dt + timedelta(hours=6) + timedelta(seconds=_local_time_offset())
+    @check_api_key
+    def addTask(self,key=None,**kwargs):
+        return self._call(method='addTask', key=key, **kwargs).text
 
-def _local_time_offset():
-    """Return offset of local zone from GMT"""
-    if time.localtime().tm_isdst and time.daylight:
-        return -time.altzone
-    else:
-        return -time.timezone
+    @check_api_key
+    def addContext(self,key=None,**kwargs):
+        return self._call(method='addContext', key=key, **kwargs).text
 
-def _boolstr(string):
-    return bool(int(string))
+    @check_api_key
+    def addGoal(self,key=None,**kwargs):
+        return self._call(method='addGoal', key=key, **kwargs).text
+
+    @check_api_key
+    def addFolder(self,key=None,**kwargs):
+        return self._call(method='addFolder', key=key, **kwargs).text
+
+    @check_api_key
+    def deleteFolder(self, id_, key=None):
+        return self._call(method='deleteFolder', id_=id_, key=key).text
+
+    @check_api_key
+    def deleteContext(self, id_, key=None):
+        return self._call(method='deleteContext', id_=id_, key=key).text
+
+    @check_api_key
+    def deleteGoal(self, id_, key=None):
+        return self._call(method='deleteGoal', id_=id_, key=key).text
+
+    @check_api_key
+    def deleteTask(self, id_, key=None):
+        return self._call(method='deleteTask', id_=id_, key=key).text
+
+    @check_api_key
+    def editFolder(self, id_, key=None, **kwargs):
+        return self._call(method='editFolder', id_=id_, key=key).text
+
+    @check_api_key
+    def editFolder(self, id_, key=None, **kwargs):
+        return self._call(method='editTask', id_=id_, key=key).text
+
+    def createAccount(self, email, pass_):
+        '''Create a new account
+
+        Returns:
+            userid - 15 or 16 character hexidecimal string
+        '''
+        return self._call(method='createAccount', email=_email, pass_=pass_).text
