@@ -96,6 +96,7 @@ class ToodledoData(object):
                 'rep_advanced': str,
                 'status': int,
                 'star': _boolstr,
+                'stamp': str,
                 'priority': int,
                 'length': int,
                 'timer': int,
@@ -109,7 +110,7 @@ class ToodledoData(object):
              self.__dict__[elem.tag] = typemap[elem.tag](elem.text)
         for a in node.attrib:
              self.__dict__[a] = typemap[a](node.attrib[a])
-        if not node.text.isspace() :
+        if node.text and not node.text.isspace() :
             self.title = node.text
 
     def __repr__(self):
@@ -172,7 +173,7 @@ class ApiClient(object):
         url = ApiClient._SERVICE_URL
         # add args to url (key1=value1;key2=value2)
         # trailing underscores are stripped from keys to allow keys like pass_
-        url += ';'.join(key.rstrip('_') + '=' + str(kwargs[key]) for key in sorted(kwargs))
+        url += ';'.join(key.rstrip('_') + '=' + urllib2.quote(str(kwargs[key])) for key in sorted(kwargs))
         return url
 
     def _check_for_error(self, node):
@@ -248,8 +249,8 @@ class ApiClient(object):
 
     @check_api_key
     @returns_list
-    def getDeleted(self, key=None, **kwargs):
-        return self._call(method='getDeleted', key=key, **kwargs)
+    def getDeleted(self, after, key=None ):
+        return self._call(method='getDeleted', key=key, after=after)
 
     @check_api_key
     def addTask(self,key=None,**kwargs):
