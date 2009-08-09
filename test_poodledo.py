@@ -31,7 +31,7 @@ class MyTest(unittest.TestCase):
         self.opener = MockOpener()
         self.opener.add_file('default', 'testdata/error.xml')
         self.opener.add_file(
-                'http://www.toodledo.com/api.php?email=test@test.de;method=getUserid;pass=mypassword',
+                'http://www.toodledo.com/api.php?email=test%40test.de;method=getUserid;pass=mypassword',
                 'testdata/getUserid_good.xml')
         self.opener.add_file(
                 'http://www.toodledo.com/api.php?method=getToken;userid=sampleuserid156',
@@ -70,7 +70,11 @@ class MyTest(unittest.TestCase):
         info = api.getServerInfo()
         self.assertEquals(info.unixtime, 1228476730)
         # self.assertEquals(info.date, 'Fri, 05 Dec 2008 05:32:10 -0600')
-        self.assertEquals(info.date, datetime(2008, 12, 5, 11, 32, 10) - timedelta(seconds=time.timezone))
+        if time.daylight:
+            self.assertEquals(info.date, datetime(2008, 12, 5, 11, 32, 10) - timedelta(seconds=time.altzone))
+        else:
+            self.assertEquals(info.date, datetime(2008, 12, 5, 11, 32, 10) - timedelta(seconds=time.timezone))
+
         self.assertEquals(info.tokenexpires, 238.53)
 
 
@@ -81,7 +85,6 @@ def suite():
 
 
 if __name__ == '__main__':
-    from unittestguiWx import GUITestRunner
     testsuite = suite()
     runner = unittest.TextTestRunner(sys.stdout, verbosity=2)
     result = runner.run(testsuite)
