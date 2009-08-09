@@ -130,15 +130,16 @@ class PoodledoError(Exception):
 
 def check_api_key(f):
     ''' A decorator that makes the decorated function check for a API key'''
-    def fn(self, **kwargs):
+    def fn(*args, **kwargs):
+        self = args[0]
         # check if key is set to a value
         if 'key' in kwargs and kwargs['key'] is not None:
-            return f(self, **kwargs)
+            return f(*args, **kwargs)
         else:
             # try to get the key from the ApiClient
             if self.key is not None:
                 kwargs['key'] = self.key
-                return f(self, **kwargs)
+                return f(*args, **kwargs)
             else:
                 raise PoodledoError('need API key to call function %s' % f.__name__)
     return fn
