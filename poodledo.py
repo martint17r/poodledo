@@ -89,6 +89,7 @@ class ToodledoData(object):
                 'added': str,
                 'modified': str,
                 'startdate': str,
+                'starttime': str,
                 'duedate': str,
                 'duetime': str,
                 'completed': str,
