@@ -193,10 +193,16 @@ class ApiClient(object):
 
 
     def authenticate(self, email, passwd):
-        ''' Uses credentials to get userid, token and auth key'''
+        ''' 
+            Uses credentials to get userid, token and auth key.
+
+            Returns the auth key, which can be cached and used later in the constructor in 
+            order to skip authenticate()
+        '''
         self.userid = self.getUserid(email,passwd)
         self.token = self.getToken()
         self.key = self._generateKey(self.userid, self.token, passwd)
+        return self.key
 
     @property
     def isAuthenticated(self):
