@@ -93,6 +93,7 @@ class ToodledoData(object):
                 'duedate': str,
                 'duetime': str,
                 'completed': str,
+                'reminder': int,
                 'repeat': int,
                 'rep_advanced': str,
                 'status': int,
