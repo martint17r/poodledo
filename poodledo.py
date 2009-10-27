@@ -159,13 +159,14 @@ class ApiClient(object):
     ''' Toodledo API client'''
     _SERVICE_URL = 'http://www.toodledo.com/api.php?'
 
-    def __init__(self, key=None):
+    def __init__(self, key=None, application_id="poodledo"):
         ''' Initializes a new ApiClient w/o auth credentials'''
         self._urlopener = urllib2.build_opener()
 
         self.key = key
         self.token = None
         self.userid = None
+        self.application_id = application_id
 
     def set_urlopener(self, opener):
         self._urlopener = opener
@@ -224,7 +225,7 @@ class ApiClient(object):
                 userid = self.userid
             else:
                 raise Exception() # TODO: 
-        return self._call(method='getToken', userid=userid).text
+        return self._call(method='getToken', userid=userid, appid=self.application_id).text
 
     @check_api_key
     @returns_item
