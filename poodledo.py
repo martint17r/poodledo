@@ -103,7 +103,17 @@ class ToodledoData(object):
                 'length': int,
                 'timer': int,
                 'note': unicode 
-                }
+                },
+            'note': {
+                    'id': int,
+                    'folder': int,
+                    'added': str,
+                    'modified': str,
+                    'title': str,
+                    'text': str,
+                    'private': _boolstr,
+                    'stamp': str,
+                    },
             }
 
     def __init__(self,node=None):
@@ -295,8 +305,12 @@ class ApiClient(object):
         return self._call(method='deleteTask', id_=id_, key=key).text
 
     @check_api_key
+    def editTask(self, id_, key=None, **kwargs):
+        return self._call(method='editTask', id_=id_, key=key, **kwargs).text
+
+    @check_api_key
     def editFolder(self, id_, key=None, **kwargs):
-        return self._call(method='editFolder', id_=id_, key=key).text
+        return self._call(method='editFolder', id_=id_, key=key, **kwargs).text
 
     def createAccount(self, email, pass_):
         '''Create a new account
@@ -305,3 +319,28 @@ class ApiClient(object):
             userid - 15 or 16 character hexidecimal string
         '''
         return self._call(method='createAccount', email=_email, pass_=pass_).text
+
+# Notes API #######################################
+
+    @check_api_key
+    @returns_list
+    def getNotes(self, key=None):
+        return self._call(method='getNotes', key=key)
+
+    @check_api_key
+    @returns_list
+    def getDeletedNotes(self, after, key=None ):
+        return self._call(method='getDeletedNotes', key=key, after=after)
+
+    @check_api_key
+    def addNote(self,key=None,**kwargs):
+        return self._call(method='addNote', key=key, **kwargs).text
+
+    @check_api_key
+    def deleteNote(self, id_, key=None):
+        return self._call(method='deleteNote', id_=id_, key=key).text
+
+    @check_api_key
+    def editNote(self, id_, key=None, **kwargs):
+        return self._call(method='editNote', id_=id_, key=key, **kwargs).text
+
