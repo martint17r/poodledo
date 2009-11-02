@@ -298,10 +298,6 @@ class ApiClient(object):
     def editFolder(self, id_, key=None, **kwargs):
         return self._call(method='editFolder', id_=id_, key=key).text
 
-    @check_api_key
-    def editFolder(self, id_, key=None, **kwargs):
-        return self._call(method='editTask', id_=id_, key=key).text
-
     def createAccount(self, email, pass_):
         '''Create a new account
 
