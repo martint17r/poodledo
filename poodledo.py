@@ -53,7 +53,7 @@ class ToodledoData(object):
                 },
             'context': {
                 'id': int,
-                'default': _boolstr,
+                'def': _boolstr,
                 },
             'goal': {
                 'id': int,
@@ -105,15 +105,15 @@ class ToodledoData(object):
                 'note': unicode 
                 },
             'note': {
-                    'id': int,
-                    'folder': int,
-                    'added': str,
-                    'modified': str,
-                    'title': str,
-                    'text': str,
-                    'private': _boolstr,
-                    'stamp': str,
-                    },
+                'id': int,
+                'folder': int,
+                'added': str,
+                'modified': str,
+                'title': str,
+                'text': str,
+                'private': _boolstr,
+                'stamp': str,
+                },
             }
 
     def __init__(self,node=None):
