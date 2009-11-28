@@ -8,7 +8,12 @@ import urllib2
 import elementtree.ElementTree as ET
 import time
 from datetime import datetime, timedelta
-from md5 import md5
+
+try:
+    from hashlib import md5
+except ImportError:
+    from md5 import md5
+
 
 __all__ = ['ApiClient']
 
