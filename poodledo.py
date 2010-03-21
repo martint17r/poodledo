@@ -5,7 +5,14 @@ import os
 import urllib
 import urllib2
 
-import elementtree.ElementTree as ET
+import sys
+try:
+    import xml.etree.cElementTree as ET
+except ImportError:
+    try:
+        import elementtree.ElementTree as ET
+    except ImportError:
+        sys.exit("poodledo requires either Python 2.5+, or the ElementTree module installed.")
 import time
 from datetime import datetime, timedelta
 
