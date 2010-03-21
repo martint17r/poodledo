@@ -13,14 +13,20 @@ except ImportError:
         import elementtree.ElementTree as ET
     except ImportError:
         sys.exit("poodledo requires either Python 2.5+, or the ElementTree module installed.")
+
 import time
 from datetime import datetime, timedelta
+
+try:
+    import yaml
+    default_auth_handler="YamlAuth"
+except ImportError:
+    default_auth_handler=None
 
 try:
     from hashlib import md5
 except ImportError:
     from md5 import md5
-
 
 __all__ = ['ApiClient']
 
@@ -178,11 +184,116 @@ def returns_item(f):
         return ToodledoData(f(self, **kwargs))
     return fn
 
+
+class AuthHandler(object):
+    def __init__(self):
+        self.key=None
+
+    @property
+    def isAuthenticated(self):
+        return bool(self.key is not None)
+
+class PlainAuth(AuthHandler):
+    def __init__(self, email, passwd):
+        super(PlainAuth, self).__init__()
+        self.email=email
+        self.passwd=passwd
+        self.userid=None
+        self.token=None
+
+    def _generateKey(self, userid, token, passwd):
+        ''' Generates a key as specified in the API docs'''
+        return md5(md5(passwd).hexdigest() + token + userid).hexdigest()
+
+    def authenticate(self, callee, application_id):
+        if self.key!=None:
+            return self.key
+        if self.userid==None:
+            self.userid = self._getUserid(callee)
+        if self.token==None:
+            self.token = self._getToken(callee, application_id)
+        self.key = self._generateKey(self.userid, self.token, self.passwd)
+        return self.key
+
+    def _getUserid(self, callee):
+        self.userid = callee(method='getUserid', email=self.email, pass_=self.passwd).text
+        if self.userid == '1':
+            raise ToodledoError('invalid username/password')
+        return self.userid
+
+    def _getToken(self, callee, application_id):
+        if self.userid is not None:
+            userid = self.userid
+        else:
+            raise Exception() # TODO:
+        return callee(method='getToken', userid=userid, appid=application_id).text
+
+class YamlAuth(PlainAuth):
+    def __init__(self, basedir="~/.toodledo", filename="user-config.yml"):
+        self.tokenNeedsValidation=False
+        self.basedir=basedir
+        self.configfname=filename
+        self.config=self._loadConfig(basedir, filename)
+        super(YamlAuth, self).__init__(email=None, passwd=self.config['connection']['password'])
+        self.userid=self.config['connection']['user_id']
+        self._loadToken()
+
+    def _calcTokenPath(self):
+        tokenpath=os.path.join(self.basedir, "tokens", self.userid)
+        return os.path.expanduser(tokenpath)
+
+    def _loadToken(self):
+        tokenpath=self._calcTokenPath()
+        if not os.path.exists(os.path.dirname(tokenpath)):
+            return False
+        if not os.path.exists(tokenpath):
+            return False
+        tokenfile=open(tokenpath, 'r')
+        self.token=yaml.load(tokenfile)
+        self.tokenNeedsValidation=True
+
+    def _getToken(self, callee, application_id):
+        token=super(YamlAuth, self)._getToken(callee, application_id)
+        self._storeToken(token)
+        return token
+
+    def _storeToken(self, token):
+        tokenpath=self._calcTokenPath()
+        tokendir=os.path.dirname(tokenpath)
+        if not os.path.exists(tokendir):
+            os.makedirs(tokendir)
+        tokenfile=open(tokenpath, 'w')
+        tokenfile.write(token)
+        tokenfile.close()
+
+    def _validateToken(self, callee):
+        self.tokenNeedsValdation=False
+        key = self._generateKey(self.userid, self.token, self.passwd)
+        try:
+            callee(method='getServerInfo', key=key).text
+        except:
+            self.token=None
+
+    def authenticate(self, callee, application_id):
+        if self.tokenNeedsValidation:
+            self._validateToken(callee)
+        return super(YamlAuth, self).authenticate(callee, application_id)
+
+    def _loadConfig(self, basedir, file):
+        userfname=os.path.join(basedir, file)
+        userfname=os.path.expanduser(userfname)
+        if os.path.exists(userfname):
+            usercfgfile=open(userfname, 'r')
+            config=yaml.load(usercfgfile)
+        else:
+            raise PoodledoError("'%s' not found - aborting" % userfname)
+        return config
+
 class ApiClient(object):
     ''' Toodledo API client'''
     _SERVICE_URL = 'http://www.toodledo.com/api.php?'
 
-    def __init__(self, key=None, application_id="poodledo"):
+    def __init__(self, key=None, application_id="poodledo", auth_handler=default_auth_handler):
         ''' Initializes a new ApiClient w/o auth credentials'''
         self._urlopener = urllib2.build_opener()
 
@@ -190,6 +301,11 @@ class ApiClient(object):
         self.token = None
         self.userid = None
         self.application_id = application_id
+        if auth_handler==None or isinstance(auth_handler, type(AuthHandler)):
+            self.auth_handler = auth_handler
+        elif isinstance(auth_handler, basestring):
+            valid_handlers={'YamlAuth': YamlAuth}
+            self.auth_handler = valid_handlers[auth_handler]()
 
     def set_urlopener(self, opener):
         self._urlopener = opener
@@ -207,7 +323,6 @@ class ApiClient(object):
         if node.tag == 'error':
             raise ToodledoError(node.text)
 
-
     def _call(self, **kwargs):
         url = self._create_url(**kwargs)
         stream = self._urlopener.open(url)
@@ -215,40 +330,30 @@ class ApiClient(object):
         self._check_for_error(root_node)
         return root_node
 
-
-    def authenticate(self, email, passwd):
+    def authenticate(self, email=None, passwd=None):
         ''' 
             Uses credentials to get userid, token and auth key.
 
             Returns the auth key, which can be cached and used later in the constructor in 
             order to skip authenticate()
         '''
-        self.userid = self.getUserid(email,passwd)
-        self.token = self.getToken()
-        self.key = self._generateKey(self.userid, self.token, passwd)
+        if email!=None and passwd!=None:
+            self.auth_handler = PlainAuth(email, passwd)
+        return self._authenticate()
+
+    def _authenticate(self):
+        if self.key!=None:
+            return self.key
+        if self.auth_handler==None:
+            raise PoodledoError('cannot authenticate - please pass in email and password or use an auth handler')
+        self.key=self.auth_handler.authenticate(self._call, self.application_id)
         return self.key
 
     @property
     def isAuthenticated(self):
-        return bool(self.key is not None)
-
-    def _generateKey(self, userid, token, passwd):
-        ''' Generates a key as specified in the API docs'''
-        return md5(md5(passwd).hexdigest() + token + userid).hexdigest()
-
-    def getUserid(self, email, passwd):
-        userid = self._call(method='getUserid', email=email, pass_=passwd).text
-        if userid == '1':
-            raise ToodledoError('invalid username/password')
-        return userid 
-
-    def getToken(self, userid=None):
-        if userid is None:
-            if self.userid is not None:
-                userid = self.userid
-            else:
-                raise Exception() # TODO: 
-        return self._call(method='getToken', userid=userid, appid=self.application_id).text
+        if self.auth_handler==None:
+            raise PoodledoError('cannot authenticate - please pass in email and password or use an auth handler')
+        return self.auth_handler.isAuthenticated
 
     @check_api_key
     @returns_item
