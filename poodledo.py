@@ -41,9 +41,6 @@ def _local_time_offset():
     else:
         return -time.timezone
 
-def _date(string):
-    return datetime.st
-
 def _boolstr(string):
     return bool(int(string))
 
