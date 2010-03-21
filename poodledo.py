@@ -55,6 +55,7 @@ class ToodledoData(object):
             'server': {
                 'unixtime': int,
                 'date': _local_date,
+                'serveroffset': int,
                 'tokenexpires': float
                 },
             'folder': {
