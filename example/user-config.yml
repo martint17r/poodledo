@@ -1,0 +1,30 @@
+
+#
+# The connection to Toodledo.
+#
+connection:
+#
+# If you have a Pro account, you can use HTTPS instead of HTTP
+  url: https://www.toodledo.com/api.php
+
+# 
+# If you are logged in to Toodledo, you should be able to see
+# your userid at this URL: 
+#
+# http://www.toodledo.com/info/api_doc.php
+#  
+  user_id: foo
+  
+#
+# Your password
+#
+  password: bar
+
+#
+# Uncomment this section if you are working through a proxy
+#
+#proxy:
+#  host: 
+#  port:
+#  user:
+#  password:
